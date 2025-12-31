@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>南尾音遊戲(2)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Prevent pull-to-refresh and other touch behaviors on mobile */
+        body {
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+        
+        /* Utility for absolute centering */
+        .absolute-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Animations */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-25%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+            50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+        }
+        .animate-bounce-custom {
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .animate-pulse-custom {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes fadeInZoom {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-in {
+            animation: fadeInZoom 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-amber-50 font-sans select-none overflow-hidden flex flex-col h-screen text-gray-800">
+
+    <!-- Header -->
+    <div class="bg-amber-200 p-4 shadow-sm flex justify-between items-center z-10 shrink-0">
+        <h1 class="text-xl font-bold text-amber-900 flex items-center gap-2">
+            <span>🍪</span> 南尾音遊戲(2)
+        </h1>
+        <div id="level-indicator" class="text-amber-800 font-bold">
+            Level 1 / 10
+        </div>
+    </div>
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="flex-1 relative flex flex-col w-full h-full">
+        
+        <!-- Screens will be injected here by JS -->
+        <div id="screen-content" class="w-full h-full flex flex-col"></div>
+
+        <!-- Overlay for Angry Face -->
+        <div id="feedback-overlay" class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none hidden">
+            <div class="animate-bounce-custom bg-white p-8 rounded-full shadow-2xl border-4 border-red-500">
+                <!-- Frown Icon -->
+                <svg width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M16 16s-1.5-2-4-2-4 2-4 2"></path>
+                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                </svg>
+            </div>
+        </div>
+
+        <!-- Success Modal -->
+        <div id="success-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 backdrop-blur-sm p-4 hidden">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 shadow-2xl max-w-lg w-full text-center border-8 border-amber-300 animate-in">
+                <h2 class="text-2xl font-bold text-amber-800 mb-6">非常好! 請讀出:</h2>
+                
+                <div class="flex justify-center gap-4 mb-8">
+                    <!-- Card 1 -->
+                    <div class="w-32 sm:w-36 h-40 sm:h-48 bg-blue-100 rounded-xl flex flex-col items-center justify-center shadow-md border-2 border-blue-200">
+                        <span id="word-1" class="text-4xl sm:text-5xl mb-2 font-serif font-bold text-gray-800"></span>
+                        <span id="pinyin-1" class="text-gray-500 text-lg font-mono"></span>
+                    </div>
+
+                    <div class="h-40 sm:h-48 flex items-center text-gray-400 font-bold">VS</div>
+
+                    <!-- Card 2 -->
+                    <div class="w-32 sm:w-36 h-40 sm:h-48 bg-green-100 rounded-xl flex flex-col items-center justify-center shadow-md border-2 border-green-200">
+                        <span id="word-2" class="text-4xl sm:text-5xl mb-2 font-serif font-bold text-gray-800"></span>
+                        <span id="pinyin-2" class="text-gray-500 text-lg font-mono"></span>
+                    </div>
+                </div>
+
+                <button id="next-btn" class="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-bold text-xl shadow-md transition-colors flex items-center justify-center gap-2">
+                    Next Pair 
+                    <!-- Check Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        const WORD_PAIRS = [
+            { id: 1, pair: ["南", "難"], pinyin: ["naam4", "naan4"] },
+            { id: 2, pair: ["尋", "塵"], pinyin: ["cam4", "can4"] },
+            { id: 3, pair: ["感", "緊"], pinyin: ["gam2", "gan2"] },
+            { id: 4, pair: ["心", "新"], pinyin: ["sam1", "san1"] },
+            { id: 5, pair: ["森", "新"], pinyin: ["sam1", "san1"] },
+            { id: 6, pair: ["浸", "震"], pinyin: ["zam3", "zan3"] },
+            { id: 7, pair: ["藍", "蘭"], pinyin: ["laam4", "laan4"] },
+            { id: 8, pair: ["參", "餐"], pinyin: ["caam1", "caan1"] },
+            { id: 9, pair: ["三", "山"], pinyin: ["saam1", "saan1"] },
+        ];
+
+        const FLAVORS = [
+            { name: 'chocolate', color: 'bg-amber-800', border: 'border-amber-900' }, 
+            { name: 'vanilla', color: 'bg-yellow-100', border: 'border-yellow-200' }, 
+            { name: 'matcha', color: 'bg-green-300', border: 'border-green-400' },   
+            { name: 'strawberry', color: 'bg-pink-300', border: 'border-pink-400' }, 
+        ];
+
+        const DRINKS = [
+            { id: 'chocolate', label: '朱古力', color: 'bg-amber-900', textColor: 'text-amber-100' },
+            { id: 'milk', label: '牛奶', color: 'bg-blue-50', textColor: 'text-blue-800' },
+            { id: 'coffee', label: '咖啡', color: 'bg-stone-800', textColor: 'text-stone-100' },
+        ];
+
+        // --- STATE ---
+        let gameState = 'start'; // start, playing, finished
+        let currentPairIndex = 0;
+        let currentCookie = null;
+        let isDragging = false;
+        let dragOffset = { x: 0, y: 0 };
+        let cookieElement = null;
+        let startPos = { x: 0, y: 0 }; // Initial position for CSS transform
+
+        // --- DOM ELEMENTS ---
+        const screenContent = document.getElementById('screen-content');
+        const levelIndicator = document.getElementById('level-indicator');
+        const successModal = document.getElementById('success-modal');
+        const feedbackOverlay = document.getElementById('feedback-overlay');
+        const nextBtn = document.getElementById('next-btn');
+
+        // --- INITIALIZATION ---
+        function init() {
+            renderStartScreen();
+            nextBtn.addEventListener('click', nextRound);
+        }
+
+        // --- RENDERING SCREENS ---
+
+        function renderStartScreen() {
+            levelIndicator.style.opacity = '0';
+            screenContent.innerHTML = `
+                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+                    <div class="w-32 h-32 bg-amber-100 rounded-full flex items-center justify-center border-4 border-amber-300">
+                        <div class="text-6xl">🍪</div>
+                    </div>
+                    <h2 class="text-3xl font-bold text-amber-900">南尾音練習</h2>
+                    <p class="text-lg text-amber-800 max-w-md">
+                        幫餅乾們找它們最喜歡的飲品! <br>
+                        提示：看看餅乾頭上的泡泡。
+                    </p>
+                    <button onclick="startGame()" class="px-8 py-4 bg-amber-600 text-white rounded-full text-xl font-bold shadow-lg hover:bg-amber-700 hover:scale-105 transition-all flex items-center gap-2">
+                        <!-- Play Icon -->
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        Start Game
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderFinishedScreen() {
+            levelIndicator.style.opacity = '0';
+            screenContent.innerHTML = `
+                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 animate-in">
+                    <div class="text-8xl animate-bounce-custom">🎉</div>
+                    <h2 class="text-3xl font-bold text-amber-900">Great Job!</h2>
+                    <p class="text-lg text-amber-800">完成練習！</p>
+                    <button onclick="resetGame()" class="px-8 py-4 bg-green-600 text-white rounded-full text-xl font-bold shadow-lg hover:bg-green-700 transition-all flex items-center gap-2">
+                        <!-- Rotate Icon -->
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74-2.74L3 12"></path><path d="M3 3v9h9"></path></svg>
+                        Play Again
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderGameScreen() {
+            levelIndicator.style.opacity = '1';
+            levelIndicator.innerText = `Level ${currentPairIndex + 1} / ${WORD_PAIRS.length}`;
+            
+            // Generate Cups HTML
+            const cupsHtml = DRINKS.map(drink => {
+                const isMilk = drink.id === 'milk';
+                const steamHtml = !isMilk ? `
+                    <div class="absolute -top-6 flex space-x-2 opacity-50">
+                        <div class="w-2 h-6 bg-gray-300 rounded-full blur-sm animate-pulse-custom"></div>
+                        <div class="w-2 h-8 bg-gray-300 rounded-full blur-sm animate-pulse-custom" style="animation-delay: 0.1s"></div>
+                        <div class="w-2 h-5 bg-gray-300 rounded-full blur-sm animate-pulse-custom" style="animation-delay: 0.2s"></div>
+                    </div>` : '';
+                
+                const handleHtml = !isMilk ? `<div class="absolute right-[-12px] top-8 w-6 h-12 border-4 border-gray-200 rounded-r-xl -z-10"></div>` : '';
+
+                return `
+                    <div class="cup-target relative flex flex-col items-center justify-end transition-transform duration-300" 
+                         data-id="${drink.id}"
+                         style="width: 100px; height: 120px;">
+                        ${steamHtml}
+                        <div class="w-24 h-28 rounded-b-3xl rounded-t-sm shadow-lg border-4 border-gray-200 flex items-center justify-center overflow-hidden relative ${isMilk ? 'bg-blue-100' : 'bg-white'}">
+                            <div class="absolute bottom-2 w-20 h-20 rounded-b-2xl ${drink.color} bg-opacity-90"></div>
+                            <div class="z-10 font-bold text-sm bg-white/80 px-2 py-1 rounded shadow-sm text-gray-800">
+                                ${drink.label}
+                            </div>
+                        </div>
+                        ${handleHtml}
+                    </div>
+                `;
+            }).join('');
+
+            screenContent.innerHTML = `
+                <div class="flex-1 flex flex-col">
+                    <!-- Cups Area -->
+                    <div class="flex-1 flex items-center justify-center gap-4 sm:gap-12 md:gap-24 p-4 items-start pt-12 select-none">
+                        ${cupsHtml}
+                    </div>
+
+                    <!-- Plate Area -->
+                    <div class="h-1/3 bg-amber-100 border-t-8 border-amber-200 relative flex items-center justify-center shadow-inner select-none z-20">
+                        <!-- Plate Decoration -->
+                        <div class="absolute w-[90%] max-w-md h-40 bg-white rounded-[50%] shadow-lg border-4 border-gray-100 pointer-events-none"></div>
+                        
+                        <!-- Cookie Container -->
+                        <div id="cookie-container" class="relative z-30 w-0 h-0 flex items-center justify-center">
+                            <!-- Cookie will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            setupRound();
+        }
+
+        // --- GAME LOGIC ---
+
+        function startGame() {
+            gameState = 'playing';
+            renderGameScreen();
+        }
+
+        function resetGame() {
+            currentPairIndex = 0;
+            startGame();
+        }
+
+        function setupRound() {
+            // Randomize Cookie
+            const randomFlavor = FLAVORS[Math.floor(Math.random() * FLAVORS.length)];
+            const randomShape = Math.random() > 0.5 ? 'circle' : 'rect';
+            const randomTarget = DRINKS[Math.floor(Math.random() * DRINKS.length)];
+
+            currentCookie = {
+                flavor: randomFlavor,
+                shape: randomShape,
+                target: randomTarget
+            };
+
+            createCookieElement();
+        }
+
+        function createCookieElement() {
+            const container = document.getElementById('cookie-container');
+            container.innerHTML = ''; // Clear existing
+
+            const shapeClass = currentCookie.shape === 'circle' ? 'rounded-full' : 'rounded-md';
+            
+            // Create the wrapper div
+            const wrapper = document.createElement('div');
+            wrapper.className = 'absolute cursor-grab active:cursor-grabbing z-50 touch-none select-none';
+            wrapper.style.transform = 'translate(0px, 0px)';
+            
+            // Thought Bubble HTML
+            const bubbleHtml = `
+                <div id="thought-bubble" class="absolute -top-16 -right-8 bg-white p-2 rounded-xl shadow-md border-2 border-blue-200 animate-bounce-custom flex flex-col items-center z-20 pointer-events-none w-20">
+                    <div class="text-[10px] text-gray-500 font-bold mb-1">我喜歡：</div>
+                    <div class="text-xs font-bold px-1 rounded ${currentCookie.target.color} ${currentCookie.target.textColor}">
+                        ${currentCookie.target.label}
+                    </div>
+                    <div class="absolute -bottom-2 left-4 w-4 h-4 bg-white border-r-2 border-b-2 border-blue-200 transform rotate-45"></div>
+                </div>
+            `;
+
+            // Cookie Visual HTML
+            const cookieHtml = `
+                <div class="w-24 h-24 ${shapeClass} ${currentCookie.flavor.color} border-4 ${currentCookie.flavor.border} shadow-xl flex items-center justify-center relative overflow-hidden pointer-events-none">
+                    <div class="absolute top-4 left-4 w-2 h-2 rounded-full bg-black/10"></div>
+                    <div class="absolute bottom-6 right-6 w-3 h-3 rounded-full bg-black/10"></div>
+                    <div class="absolute top-8 right-8 w-2 h-2 rounded-full bg-black/10"></div>
+                    <div class="flex gap-4">
+                        <div class="w-2 h-2 bg-stone-800 rounded-full"></div>
+                        <div class="w-2 h-2 bg-stone-800 rounded-full"></div>
+                    </div>
+                    <div class="absolute bottom-6 w-4 h-2 border-b-2 border-stone-800 rounded-full"></div>
+                </div>
+            `;
+
+            wrapper.innerHTML = bubbleHtml + cookieHtml;
+            container.appendChild(wrapper);
+            cookieElement = wrapper;
+
+            // Attach drag events
+            wrapper.addEventListener('pointerdown', handleDragStart);
+        }
+
+        // --- DRAG AND DROP ---
+
+        function handleDragStart(e) {
+            e.preventDefault();
+            isDragging = true;
+            
+            // Get initial mouse/touch position
+            const clientX = e.clientX;
+            const clientY = e.clientY;
+            
+            // We want to move relative to the starting point. 
+            // Current transform is 0,0.
+            startPos = { x: clientX, y: clientY };
+            
+            // Remove bubble while dragging
+            const bubble = cookieElement.querySelector('#thought-bubble');
+            if(bubble) bubble.style.display = 'none';
+
+            cookieElement.style.cursor = 'grabbing';
+            
+            // Attach global move/up events
+            window.addEventListener('pointermove', handleDragMove);
+            window.addEventListener('pointerup', handleDragEnd);
+        }
+
+        function handleDragMove(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const dx = e.clientX - startPos.x;
+            const dy = e.clientY - startPos.y;
+
+            cookieElement.style.transform = `translate(${dx}px, ${dy}px)`;
+            
+            // Optional: Highlight cup if hovering?
+            // Could add logic here to scale up the cup under the cookie
+        }
+
+        function handleDragEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            cookieElement.style.cursor = 'grab';
+
+            window.removeEventListener('pointermove', handleDragMove);
+            window.removeEventListener('pointerup', handleDragEnd);
+
+            checkCollision();
+        }
+
+        function checkCollision() {
+            const cookieRect = cookieElement.getBoundingClientRect();
+            const cookieCenter = {
+                x: cookieRect.left + cookieRect.width / 2,
+                y: cookieRect.top + cookieRect.height / 2
+            };
+
+            const cups = document.querySelectorAll('.cup-target');
+            let droppedCupId = null;
+
+            cups.forEach(cup => {
+                const cupRect = cup.getBoundingClientRect();
+                if (
+                    cookieCenter.x >= cupRect.left &&
+                    cookieCenter.x <= cupRect.right &&
+                    cookieCenter.y >= cupRect.top &&
+                    cookieCenter.y <= cupRect.bottom
+                ) {
+                    droppedCupId = cup.getAttribute('data-id');
+                }
+            });
+
+            if (droppedCupId) {
+                if (droppedCupId === currentCookie.target.id) {
+                    handleSuccess();
+                } else {
+                    handleFailure();
+                }
+            } else {
+                // Return to start
+                resetCookiePosition();
+            }
+        }
+
+        function resetCookiePosition() {
+            cookieElement.style.transition = 'transform 0.3s ease-out';
+            cookieElement.style.transform = 'translate(0px, 0px)';
+            
+            // Bring back bubble
+            setTimeout(() => {
+                const bubble = cookieElement.querySelector('#thought-bubble');
+                if(bubble) bubble.style.display = 'block';
+                cookieElement.style.transition = ''; // Remove transition so dragging is instant again
+            }, 300);
+        }
+
+        function handleFailure() {
+            // Show angry face
+            feedbackOverlay.classList.remove('hidden');
+            
+            // Reset position after short delay
+            setTimeout(() => {
+                feedbackOverlay.classList.add('hidden');
+                resetCookiePosition();
+            }, 1000);
+        }
+
+        function handleSuccess() {
+            // Pop up modal
+            const currentPair = WORD_PAIRS[currentPairIndex];
+            
+            document.getElementById('word-1').innerText = currentPair.pair[0];
+            document.getElementById('pinyin-1').innerText = currentPair.pinyin[0];
+            
+            document.getElementById('word-2').innerText = currentPair.pair[1];
+            document.getElementById('pinyin-2').innerText = currentPair.pinyin[1];
+
+            successModal.classList.remove('hidden');
+        }
+
+        function nextRound() {
+            successModal.classList.add('hidden');
+            
+            if (currentPairIndex < WORD_PAIRS.length - 1) {
+                currentPairIndex++;
+                renderGameScreen(); // Re-renders cups and new cookie
+            } else {
+                gameState = 'finished';
+                renderFinishedScreen();
+            }
+        }
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
