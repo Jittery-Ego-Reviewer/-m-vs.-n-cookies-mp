@@ -6,10 +6,11 @@
     <title>南尾音遊戲(2)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Prevent pull-to-refresh and other touch behaviors on mobile */
+        /* Keep overscroll-behavior to prevent browser bounce, 
+           but allow normal scrolling by removing touch-action: none from body 
+        */
         body {
             overscroll-behavior: none;
-            touch-action: none;
         }
         
         /* Utility for absolute centering */
@@ -46,10 +47,11 @@
         }
     </style>
 </head>
-<body class="bg-amber-50 font-sans select-none overflow-hidden flex flex-col h-screen text-gray-800">
+<!-- Changed: Removed h-screen/overflow-hidden. Added min-h-screen to allow scrolling. -->
+<body class="bg-amber-50 font-sans select-none flex flex-col min-h-screen text-gray-800">
 
-    <!-- Header -->
-    <div class="bg-amber-200 p-4 shadow-sm flex justify-between items-center z-10 shrink-0">
+    <!-- Header: Added sticky top-0 -->
+    <div class="bg-amber-200 p-4 shadow-sm flex justify-between items-center z-10 shrink-0 sticky top-0">
         <h1 class="text-xl font-bold text-amber-900 flex items-center gap-2">
             <span>🍪</span> 南尾音遊戲(2)
         </h1>
@@ -58,11 +60,11 @@
         </div>
     </div>
 
-    <!-- Main Game Container -->
-    <div id="game-container" class="flex-1 relative flex flex-col w-full h-full">
+    <!-- Main Game Container: Removed h-full -->
+    <div id="game-container" class="flex-1 relative flex flex-col w-full">
         
         <!-- Screens will be injected here by JS -->
-        <div id="screen-content" class="w-full h-full flex flex-col"></div>
+        <div id="screen-content" class="w-full flex-1 flex flex-col"></div>
 
         <!-- Overlay for Angry Face -->
         <div id="feedback-overlay" class="fixed inset-0 flex items-center justify-center z-50 pointer-events-none hidden">
@@ -160,8 +162,9 @@
 
         function renderStartScreen() {
             levelIndicator.style.opacity = '0';
+            // Added min-h-[500px]
             screenContent.innerHTML = `
-                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 min-h-[500px]">
                     <div class="w-32 h-32 bg-amber-100 rounded-full flex items-center justify-center border-4 border-amber-300">
                         <div class="text-6xl">🍪</div>
                     </div>
@@ -181,8 +184,9 @@
 
         function renderFinishedScreen() {
             levelIndicator.style.opacity = '0';
+            // Added min-h-[500px]
             screenContent.innerHTML = `
-                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 animate-in">
+                <div class="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6 animate-in min-h-[500px]">
                     <div class="text-8xl animate-bounce-custom">🎉</div>
                     <h2 class="text-3xl font-bold text-amber-900">Great Job!</h2>
                     <p class="text-lg text-amber-800">完成練習！</p>
@@ -227,15 +231,19 @@
                 `;
             }).join('');
 
+            // Layout Update:
+            // 1. Parent: w-full (removed height constraints)
+            // 2. Cups Area: added min-h-[300px]
+            // 3. Plate Area: fixed height h-80 and shrink-0
             screenContent.innerHTML = `
-                <div class="flex-1 flex flex-col">
+                <div class="flex-1 flex flex-col w-full">
                     <!-- Cups Area -->
-                    <div class="flex-1 flex items-center justify-center gap-4 sm:gap-12 md:gap-24 p-4 items-start pt-12 select-none">
+                    <div class="flex-1 min-h-[300px] flex items-center justify-center gap-4 sm:gap-12 md:gap-24 p-4 items-start pt-12 select-none">
                         ${cupsHtml}
                     </div>
 
                     <!-- Plate Area -->
-                    <div class="h-1/3 bg-amber-100 border-t-8 border-amber-200 relative flex items-center justify-center shadow-inner select-none z-20">
+                    <div class="h-80 shrink-0 bg-amber-100 border-t-8 border-amber-200 relative flex items-center justify-center shadow-inner select-none z-20">
                         <!-- Plate Decoration -->
                         <div class="absolute w-[90%] max-w-md h-40 bg-white rounded-[50%] shadow-lg border-4 border-gray-100 pointer-events-none"></div>
                         
@@ -284,6 +292,7 @@
             const shapeClass = currentCookie.shape === 'circle' ? 'rounded-full' : 'rounded-md';
             
             // Create the wrapper div
+            // Added touch-none to prevent page scrolling while dragging the cookie
             const wrapper = document.createElement('div');
             wrapper.className = 'absolute cursor-grab active:cursor-grabbing z-50 touch-none select-none';
             wrapper.style.transform = 'translate(0px, 0px)';
